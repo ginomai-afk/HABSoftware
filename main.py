@@ -12,7 +12,7 @@ GPS receiver.  Using this hardware, it logs data collected from each sensor.
 import gps_polling
 import time
 from picamera import PiCamera
-from dht_device import DhtDevice
+from dht22_sensor import Dht22Sensor
 import board
 import busio
 import adafruit_bmp3xx
@@ -42,43 +42,42 @@ if __name__ == '__main__':
     gps_data = gps_polling.GpsPoller()
     camera = init_camera()
     iteration = 0
-    dht_sensor = DhtDevice()
+    dht_sensor = Dht22Sensor()
     i2c = busio.I2C(board.SCL, board.SDA)
     bmp = adafruit_bmp3xx.BMP3XX_I2C(i2c)
     bmp.sea_level_pressure = 1023.5
-    current_time = time.time()
 
     try:
         # Start a thread to the gps daemon.
         gps_data.start()
+        dht_sensor.start()
 
         print("Iteration,Status,NumSats,Time,Lat,Long,Alt,"
               "Speed,Temp,Humidity,Pressure,Temp,Alt")
         while True:
-            dht_sensor.poll_sensor()
-
-            if ((time.time() - current_time) >= 30):
-                current_time = time.time()
-                print("{},{},{},{},{},{},{},{},{},{},{:.2f},{:.2f},{:.2f}".format(
-                    str(iteration),
-                    str(gps_data.gpsd.fix.mode),
-                    str(gps_data.gpsd.satellites_used),
-                    gps_data.gpsd.fix.time,
-                    gps_data.gpsd.fix.latitude,
-                    gps_data.gpsd.fix.longitude,
-                    gps_data.gpsd.fix.altitude,
-                    gps_data.gpsd.fix.speed,
-                    dht_sensor.temperature_c,
-                    dht_sensor.humidity,
-                    bmp.pressure,
-                    bmp.temperature,
-                    bmp.altitude))
-                take_picture(camera, ("{}.jpg".format(str(iteration))))
-                iteration += 1
+            print("{},{},{},{},{},{},{},{},{},{},{:.2f},{:.2f},{:.2f}".format(
+                str(iteration),
+                str(gps_data.gpsd.fix.mode),
+                str(gps_data.gpsd.satellites_used),
+                gps_data.gpsd.fix.time,
+                gps_data.gpsd.fix.latitude,
+                gps_data.gpsd.fix.longitude,
+                gps_data.gpsd.fix.altitude,
+                gps_data.gpsd.fix.speed,
+                dht_sensor.temperature_c,
+                dht_sensor.humidity,
+                bmp.pressure,
+                bmp.temperature,
+                bmp.altitude))
+            take_picture(camera, ("{}.jpg".format(str(iteration))))
+            iteration += 1
+            time.sleep(30)
 
     except (KeyboardInterrupt, SystemExit):
         print("\nKilling Thread...")
         gps_data.running = False
+        dht_sensor.running = False
         gps_data.join()
+        dht_sensor.join()
 
     print("Done.\nExiting.")
